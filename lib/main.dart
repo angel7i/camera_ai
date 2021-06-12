@@ -47,11 +47,11 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     // To display the current output from the Camera,
     // create a CameraController.
     _controller = CameraController(
-      // Get a specific camera from the list of available cameras.
-      widget.camera,
-      // Define the resolution to use.
-      ResolutionPreset.high,
-    );
+        // Get a specific camera from the list of available cameras.
+        widget.camera,
+        // Define the resolution to use.
+        ResolutionPreset.medium,
+        enableAudio: false);
 
     // Next, initialize the controller. This returns a Future.
     _initializeControllerFuture = _controller.initialize();
@@ -76,7 +76,30 @@ class TakePictureScreenState extends State<TakePictureScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
             // If the Future is complete, display the preview.
-            return CameraPreview(_controller);
+            //return CameraPreview(_controller);
+            final size = MediaQuery.of(context).size.width;
+
+            return Transform.scale(
+              scale: 1.0,
+              child: AspectRatio(
+                aspectRatio: 3.0 / 4.0,
+                child: OverflowBox(
+                  alignment: Alignment.center,
+                  child: FittedBox(
+                    fit: BoxFit.fitWidth,
+                    child: Container(
+                      width: size,
+                      height: size / _controller.value.aspectRatio,
+                      child: Stack(
+                        children: <Widget>[
+                          CameraPreview(_controller),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
           } else {
             // Otherwise, display a loading indicator.
             return Center(child: CircularProgressIndicator());
@@ -143,64 +166,79 @@ class DisplayPictureScreen extends StatelessWidget {
             String img64 = base64Encode(bytes);
             log(img64);
 
-            http.Response response =
-                await http.get("https://jsonplaceholder.typicode.com/posts/1");
-
-            if (response.statusCode == 200) {
-              log(response.toString());
-              log("Data:" + json.decode(response.body).toString());
-
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: Text('Resultado'),
-                    content: SingleChildScrollView(
-                      child: ListBody(
-                        children: <Widget>[
-                          Text(json.decode(response.body).toString()),
-                        ],
-                      ),
-                    ),
-                    actions: <Widget>[
-                      FlatButton(
-                        child: Text('Cerrar'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-            } else {
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: Text('Excepción'),
-                    content: SingleChildScrollView(
-                      child: ListBody(
-                        children: <Widget>[
-                          Text(response.body),
-                        ],
-                      ),
-                    ),
-                    actions: <Widget>[
-                      FlatButton(
-                        child: Text('Cerrar'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-            }
+            http.Response response = await sendImage(img64);
+            processResponse(response, context);
           }),
+    );
+  }
+}
+
+Future<http.Response> sendImage(String image64) {
+  return http.post(
+    'https://camera-test-server.herokuapp.com/image',
+    headers: <String, String>{
+      'Content-Type': 'application/json; charset=UTF-8',
+    },
+    body: jsonEncode(<String, String>{
+      'data': image64,
+    }),
+  );
+}
+
+void processResponse(http.Response response, BuildContext context) {
+  if (response.statusCode >= 200 && response.statusCode < 300) {
+    log(response.toString());
+    var respData = json.decode(response.body);
+    log("Data:" + respData.toString());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Resultado'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text(respData["msg"]),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            FlatButton(
+              child: Text('Cerrar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  } else {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Excepción'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text(response.body),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            FlatButton(
+              child: Text('Cerrar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
